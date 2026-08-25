@@ -70,6 +70,9 @@ function createAuth() {
     ...baseAuthConfig,
     emailAndPassword: {
       ...baseAuthConfig.emailAndPassword,
+      // Self-hosted Better Auth has no public signup surface. A controlled
+      // bootstrap can enable it for one deploy through ALLOW_SIGNUP=true.
+      disableSignUp: Reflect.get(env, "ALLOW_SIGNUP") !== "true",
       requireEmailVerification: !bypassEmail,
       resetPasswordTokenExpiresIn: 60 * 60,
       revokeSessionsOnPasswordReset: true,
