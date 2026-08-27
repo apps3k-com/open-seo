@@ -14,7 +14,7 @@ import {
   openRouterCostUsd,
   staticAssistantResponse,
 } from "@/server/lib/chatAgent";
-import { isHostedServerAuthMode } from "@/server/lib/runtime-env";
+import { isAutumnBillingEnabled } from "@/server/lib/runtime-env";
 import {
   customerHasManagedAccess,
   checkUsageCreditsDepleted,
@@ -138,7 +138,7 @@ export class OnboardingChatAgent extends AIChatAgent {
     // own provider keys, so it's ungated. Captured for metering in onFinish.
     let creditCustomerId: string | null = null;
     let monthlyCreditsRemaining = 0;
-    if (await isHostedServerAuthMode()) {
+    if (await isAutumnBillingEnabled()) {
       const questionCount = this.messages.filter(
         (message) => message.role === "user",
       ).length;

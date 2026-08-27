@@ -36,7 +36,8 @@ const DEFAULT_CHAT_AGENT_MODEL = "minimax/minimax-m3";
 export async function getChatAgentModel(): Promise<LanguageModelV3> {
   const apiKey = await getRequiredEnvValue("OPENROUTER_API_KEY");
   const modelId = await getOptionalEnvValue("OPENROUTER_MODEL");
-  return buildChatAgentModel(apiKey, modelId);
+  const baseUrl = await getOptionalEnvValue("OPENROUTER_BASE_URL");
+  return buildChatAgentModel(apiKey, modelId, baseUrl);
 }
 
 /**
@@ -47,14 +48,18 @@ export async function getChatAgentModel(): Promise<LanguageModelV3> {
 export function buildChatAgentModel(
   apiKey: string,
   modelId?: string,
+  baseURL?: string,
 ): LanguageModelV3 {
-  return createOpenRouter({ apiKey })(modelId ?? DEFAULT_CHAT_AGENT_MODEL, {
-    usage: { include: true },
-    reasoning: { effort: "medium" },
-    provider: {
-      order: ["together", "atlas-cloud/fp8"],
-      zdr: true,
-      allow_fallbacks: true,
+  return createOpenRouter({ apiKey, ...(baseURL ? { baseURL } : {}) })(
+    modelId ?? DEFAULT_CHAT_AGENT_MODEL,
+    {
+      usage: { include: true },
+      reasoning: { effort: "medium" },
+      provider: {
+        order: ["together", "atlas-cloud/fp8"],
+        zdr: true,
+        allow_fallbacks: true,
+      },
     },
-  });
+  );
 }
