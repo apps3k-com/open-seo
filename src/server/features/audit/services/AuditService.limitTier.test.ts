@@ -1,16 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { isHostedMock, hasManagedAccessMock, hasPaidPlanMock } = vi.hoisted(
-  () => ({
-    isHostedMock: vi.fn(),
+const { isAutumnBillingEnabledMock, hasManagedAccessMock, hasPaidPlanMock } =
+  vi.hoisted(() => ({
+    isAutumnBillingEnabledMock: vi.fn(),
     hasManagedAccessMock: vi.fn(),
     hasPaidPlanMock: vi.fn(),
-  }),
-);
+  }));
 
 vi.mock("cloudflare:workers", () => ({ env: {} }));
 vi.mock("@/server/lib/runtime-env", () => ({
-  isHostedServerAuthMode: isHostedMock,
+  isAutumnBillingEnabled: isAutumnBillingEnabledMock,
 }));
 vi.mock("@/server/billing/subscription", () => ({
   customerHasManagedAccess: hasManagedAccessMock,
@@ -33,13 +32,25 @@ describe("resolveAuditLimitTier", () => {
     hasPaidPlanMock.mockResolvedValue(true);
   });
 
-  it("uses the uncapped self-hosted tier without consulting billing", async () => {
-    isHostedMock.mockResolvedValue(false);
+  it("uses the uncapped self-hosted tier when hosted auth has no Autumn billing", async () => {
+    isAutumnBillingEnabledMock.mockResolvedValue(false);
 
     await expect(AuditService.resolveAuditLimitTier("org-1")).resolves.toBe(
       "self_hosted",
     );
     expect(hasManagedAccessMock).not.toHaveBeenCalled();
     expect(hasPaidPlanMock).not.toHaveBeenCalled();
+  });
+
+  it("uses the managed billing tier when Autumn billing is enabled", async () => {
+    isAutumnBillingEnabledMock.mockResolvedValue(true);
+    hasManagedAccessMock.mockResolvedValue(true);
+    hasPaidPlanMock.mockResolvedValue(false);
+
+    await expect(AuditService.resolveAuditLimitTier("org-1")).resolves.toBe(
+      "free",
+    );
+    expect(hasManagedAccessMock).toHaveBeenCalledWith("org-1");
+    expect(hasPaidPlanMock).toHaveBeenCalledWith("org-1");
   });
 });
