@@ -41,6 +41,19 @@ export async function isHostedServerAuthMode(): Promise<boolean> {
   return isHostedAuthMode(await getOptionalEnvValue("AUTH_MODE"));
 }
 
+/**
+ * Hosted authentication and OpenSEO's managed Autumn billing are independent.
+ * Self-hosted installations commonly use AUTH_MODE=hosted for Better Auth but
+ * bring their own provider keys and intentionally have no Autumn account.
+ */
+export async function isAutumnBillingEnabled(): Promise<boolean> {
+  const [isHosted, autumnSecret] = await Promise.all([
+    isHostedServerAuthMode(),
+    getOptionalEnvValue("AUTUMN_SECRET_KEY"),
+  ]);
+  return isHosted && Boolean(autumnSecret);
+}
+
 async function getWorkersEnv(): Promise<Record<string, unknown> | null> {
   if (!workersEnvPromise) {
     workersEnvPromise = loadWorkersEnv();

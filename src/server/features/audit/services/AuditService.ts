@@ -24,15 +24,16 @@ import {
   resolveStartUrlRedirects,
 } from "@/server/lib/audit/url-policy";
 import { reconcileRunningAudit } from "@/server/features/audit/services/auditReconciler";
-import { isHostedServerAuthMode } from "@/server/lib/runtime-env";
+import { isAutumnBillingEnabled } from "@/server/lib/runtime-env";
 
-// Plan-tier limits are the abuse bound in hosted mode: free accounts get one
-// small audit at a time, paid keeps the full limits, and customers with no
-// Autumn product at all are turned away. Self-hosted isn't gated.
+// Plan-tier limits are the abuse bound when Autumn billing is active: free
+// accounts get one small audit at a time, paid keeps the full limits, and
+// customers with no Autumn product at all are turned away. Self-hosted Better
+// Auth does not imply Autumn billing, so it remains ungated.
 async function resolveAuditLimitTier(
   organizationId: string,
 ): Promise<AuditLimitTier> {
-  if (!(await isHostedServerAuthMode())) return "self_hosted";
+  if (!(await isAutumnBillingEnabled())) return "self_hosted";
   const [hasManagedAccess, hasPaidPlan] = await Promise.all([
     customerHasManagedAccess(organizationId),
     customerHasPaidPlan(organizationId),

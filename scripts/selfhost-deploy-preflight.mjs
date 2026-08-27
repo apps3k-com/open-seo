@@ -51,7 +51,8 @@ if (!env.DATAFORSEO_API_KEY) {
 // When both are set, the deploy provisions no Access resources (hand-managed
 // application) and needs neither ACCESS_ALLOWED_EMAILS nor the access:write
 // login scope.
-const managedAccess = !(env.TEAM_DOMAIN && env.POLICY_AUD);
+const managedAccess =
+  env.AUTH_MODE !== "hosted" && !(env.TEAM_DOMAIN && env.POLICY_AUD);
 if (managedAccess && !env.ACCESS_ALLOWED_EMAILS) {
   fail(
     `${em("ACCESS_ALLOWED_EMAILS")} is not set in ${envFile} — list who may sign in through`,

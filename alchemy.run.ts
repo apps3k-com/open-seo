@@ -264,11 +264,13 @@ const dataEnv = {
   // POLICY_AUD are stage-dependent and set in the stack body below.
   DATAFORSEO_API_KEY: Config.redacted("DATAFORSEO_API_KEY"),
   BYPASS_EMAIL_VERIFICATION: optionalVar("BYPASS_EMAIL_VERIFICATION"),
+  ALLOW_SIGNUP: optionalVar("ALLOW_SIGNUP"),
   BETTER_AUTH_SECRET: optionalSecret("BETTER_AUTH_SECRET"),
   GOOGLE_CLIENT_ID: optionalVar("GOOGLE_CLIENT_ID"),
   GOOGLE_CLIENT_SECRET: optionalSecret("GOOGLE_CLIENT_SECRET"),
   OPENROUTER_API_KEY: optionalSecret("OPENROUTER_API_KEY"),
   OPENROUTER_MODEL: optionalVar("OPENROUTER_MODEL"),
+  OPENROUTER_BASE_URL: optionalVar("OPENROUTER_BASE_URL"),
   AUTUMN_SECRET_KEY: optionalSecret("AUTUMN_SECRET_KEY"),
   AUTUMN_WEBHOOK_SECRET: optionalSecret("AUTUMN_WEBHOOK_SECRET"),
   GDPR_ERASURE_SECRET: optionalSecret("GDPR_ERASURE_SECRET"),
@@ -307,6 +309,7 @@ export default Alchemy.Stack(
       Config.withDefault("cloudflare_access"),
     );
     const databaseProvider = yield* optionalVar("DATABASE_PROVIDER");
+    const selfhostDomain = yield* optionalVar("SELFHOST_DOMAIN");
     const workersSubdomain = yield* readWorkersSubdomain({ required: false });
 
     // Auth needs an absolute BETTER_AUTH_URL. Prod sets it explicitly;
@@ -331,6 +334,8 @@ export default Alchemy.Stack(
           ),
         );
       }
+    } else if (stage === "selfhost" && selfhostDomain) {
+      authUrl = `https://${selfhostDomain}`;
     } else if (workersSubdomain) {
       authUrl = `https://${workerName(stage)}.${workersSubdomain}`;
     } else if (authMode === "hosted") {
@@ -354,7 +359,11 @@ export default Alchemy.Stack(
     const app = yield* Cloudflare.Worker("open-seo", {
       name: workerName(stage),
       // Prod serves the real domains; the zone is inferred from the hostname.
-      domain: prod ? ["app.openseo.so", "www.app.openseo.so"] : undefined,
+      domain: prod
+        ? ["app.openseo.so", "www.app.openseo.so"]
+        : stage === "selfhost" && selfhostDomain
+          ? [selfhostDomain]
+          : undefined,
       // Prebuilt worker from `vite build` (@cloudflare/vite-plugin). The entry
       // exports the DO + WorkflowEntrypoint classes (re-exported by
       // src/server.ts), which `bundle: false` requires. Sibling chunks under
