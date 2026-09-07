@@ -50,6 +50,7 @@
     "billing:brand-lookup": "tsx scripts/brand-lookup-cost-profile.ts",
     "billing:usage": "tsx scripts/dataforseo-account-usage.ts",
     "cleanup:default-projects:d1": "tsx scripts/d1-default-project-cleanup.ts",
+    "migrate:hosted-workspace": "tsx scripts/hosted-workspace-migration.ts",
     "gdpr:erase-user": "tsx scripts/erase-user-data.ts",
     "seed:rank-tracking": "tsx scripts/seed-rank-tracking.ts",
     "seed:projects": "tsx scripts/seed-projects.ts",

@@ -19,13 +19,38 @@ function deriveUserName(email: string) {
   return email.split("@")[0] || "OpenSEO";
 }
 
-async function ensureUserRecord(userId: string, userEmail: string) {
+type EnsuredUserRecord = {
+  userId: string;
+  userEmail: string;
+};
+
+async function ensureUserRecord(
+  userId: string,
+  userEmail: string,
+): Promise<EnsuredUserRecord> {
   const existing = await db.query.user.findFirst({
-    columns: { email: true },
+    columns: { id: true, email: true },
     where: eq(user.id, userId),
   });
 
   if (!existing) {
+    // A hosted Better Auth installation can be switched to Cloudflare Access
+    // without changing the human's verified email. Cloudflare's JWT `sub` is
+    // intentionally a different identifier, but reusing the existing row is
+    // essential: Google grants and app records refer to the old user id.
+    // Cloudflare Access has already authenticated this email, so matching on
+    // it cannot grant a caller more access than the Access policy allowed.
+    const existingByEmail = await db.query.user.findFirst({
+      columns: { id: true, email: true },
+      where: eq(user.email, userEmail),
+    });
+    if (existingByEmail) {
+      return {
+        userId: existingByEmail.id,
+        userEmail: existingByEmail.email,
+      };
+    }
+
     // Concurrent first-load requests can all see "no row" and race to insert
     // the same id; onConflictDoNothing on the PK makes the losers no-ops instead
     // of failing. Scoped to the id so a genuine email-unique collision (two
@@ -40,7 +65,7 @@ async function ensureUserRecord(userId: string, userEmail: string) {
       })
       .onConflictDoNothing({ target: user.id });
 
-    return userEmail;
+    return { userId, userEmail };
   }
 
   if (existing.email !== userEmail) {
@@ -49,25 +74,25 @@ async function ensureUserRecord(userId: string, userEmail: string) {
       .set({ email: userEmail, name: deriveUserName(userEmail) })
       .where(eq(user.id, userId));
 
-    return userEmail;
+    return { userId, userEmail };
   }
 
-  return existing.email;
+  return { userId: existing.id, userEmail: existing.email };
 }
 
 async function resolveDelegatedContext(
   userId: string,
   userEmail: string,
 ): Promise<EnsuredUserContext> {
-  const ensuredEmail = await ensureUserRecord(userId, userEmail);
+  const ensuredUser = await ensureUserRecord(userId, userEmail);
   const organizationId = await ensureDelegatedOrganizationForUser(
-    userId,
-    ensuredEmail,
+    ensuredUser.userId,
+    ensuredUser.userEmail,
   );
 
   return {
-    userId,
-    userEmail: ensuredEmail,
+    userId: ensuredUser.userId,
+    userEmail: ensuredUser.userEmail,
     // Delegated auth (Cloudflare Access / local) has no unverified state.
     emailVerified: true,
     organizationId,
@@ -84,12 +109,12 @@ export async function resolveSharedWorkspaceContext(
   userId: string,
   userEmail: string,
 ): Promise<EnsuredUserContext> {
-  const ensuredEmail = await ensureUserRecord(userId, userEmail);
+  const ensuredUser = await ensureUserRecord(userId, userEmail);
   const organizationId = await ensureSharedWorkspaceOrganization();
 
   return {
-    userId,
-    userEmail: ensuredEmail,
+    userId: ensuredUser.userId,
+    userEmail: ensuredUser.userEmail,
     emailVerified: true,
     organizationId,
     // The Access policy is the authorization boundary; everyone it admits has

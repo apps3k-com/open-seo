@@ -76,6 +76,38 @@ pnpm install
 pnpm deploy:selfhost --yes
 ```
 
+## Migrating a legacy Better Auth installation
+
+`AUTH_MODE=hosted` is for the managed OpenSEO product, not the supported
+internet-facing self-hosting flow. This fork includes a deliberately explicit
+migration for deployments moving from that legacy mode to Cloudflare Access.
+
+1. Set `AUTH_MODE=cloudflare_access`, `TEAM_DOMAIN`, `POLICY_AUD`, and (when
+   applicable) `SELFHOST_DOMAIN` in `.env.selfhost`. Do not use
+   `ACCESS_ALLOWED_EMAILS` when an existing Access application owns the policy.
+2. Export and review the D1 data, then preview the exact legacy organizations:
+
+   ```bash
+   pnpm migrate:hosted-workspace --database YOUR_D1_DATABASE --source-org YOUR_ORGANIZATION_ID
+   ```
+
+3. Apply only the reviewed migration, deploy, and sign in through Cloudflare
+   Access:
+
+   ```bash
+   pnpm migrate:hosted-workspace --database YOUR_D1_DATABASE --source-org YOUR_ORGANIZATION_ID --apply
+   pnpm deploy:selfhost --yes
+   ```
+
+The runner preserves Better Auth identities by verified email, moves project
+and organization-scoped application data into `shared-workspace`, and journals
+each changed row. It does not delete the old organization, sessions, accounts,
+or memberships. Before reverting `AUTH_MODE`, run its journal-based rollback:
+
+```bash
+pnpm migrate:hosted-workspace --database YOUR_D1_DATABASE --rollback --apply
+```
+
 ## Giving teammates access
 
 Add the teammate to `ACCESS_ALLOWED_EMAILS` in `.env.selfhost` and redeploy. Dashboard edits to that Access policy are overwritten on the next deploy. (If you manage the Access application yourself, edit its Allow policy in Zero Trust instead.)

@@ -314,6 +314,11 @@ export default Alchemy.Stack(
       Config.withDefault("cloudflare_access"),
     );
     const databaseProvider = yield* optionalVar("DATABASE_PROVIDER");
+    // Self-hosted installations commonly attach a stable custom hostname.
+    // Keep it declarative: leaving it out of the desired Worker state makes
+    // Alchemy remove a manually-attached domain during an otherwise harmless
+    // upgrade.
+    const selfhostDomain = yield* optionalVar("SELFHOST_DOMAIN");
     const workersSubdomain = yield* readWorkersSubdomain({ required: false });
 
     // Auth needs an absolute BETTER_AUTH_URL. Prod sets it explicitly;
@@ -338,6 +343,8 @@ export default Alchemy.Stack(
           ),
         );
       }
+    } else if (stage === "selfhost" && selfhostDomain) {
+      authUrl = `https://${selfhostDomain}`;
     } else if (workersSubdomain) {
       authUrl = `https://${workerName(stage)}.${workersSubdomain}`;
     } else if (authMode === "hosted") {
@@ -423,7 +430,11 @@ export default Alchemy.Stack(
     const app = yield* Cloudflare.Worker("open-seo", {
       name: workerName(stage),
       // Prod serves the real domains; the zone is inferred from the hostname.
-      domain: prod ? ["app.openseo.so", "www.app.openseo.so"] : undefined,
+      domain: prod
+        ? ["app.openseo.so", "www.app.openseo.so"]
+        : stage === "selfhost" && selfhostDomain
+          ? [selfhostDomain]
+          : undefined,
       // Prebuilt worker from `vite build` (@cloudflare/vite-plugin). The entry
       // exports the DO + WorkflowEntrypoint classes (re-exported by
       // src/server.ts), which `bundle: false` requires. Sibling chunks under
