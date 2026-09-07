@@ -100,6 +100,12 @@ async function execute(sql: string) {
   await query(sql);
 }
 
+async function executeEach(statements: string[]) {
+  for (const statement of statements) {
+    await execute(statement);
+  }
+}
+
 async function describeForwardMigration() {
   const organizations = await query(
     `SELECT id, name FROM organization WHERE id IN (${list(sourceOrgIds)}) ORDER BY id`,
@@ -250,7 +256,7 @@ function journalStatements(
       VALUES (${quote(SHARED_WORKSPACE_ID)}, ${quote(authorizedAt)}, ${quote(toolCallAt)})
       ON CONFLICT(organization_id) DO UPDATE SET
         first_mcp_authorized_at = excluded.first_mcp_authorized_at,
-        first_mcp_tool_call_at = excluded.first_mcp_tool_call_at)
+        first_mcp_tool_call_at = excluded.first_mcp_tool_call_at
     `);
   }
   return statements;
@@ -307,7 +313,10 @@ async function rollback() {
         first_mcp_tool_call_at = excluded.first_mcp_tool_call_at
     `);
   }
-  await execute(`BEGIN IMMEDIATE; ${statements.join(";\n")}; COMMIT;`);
+  // D1's remote SQL API accepts exactly one statement per request and rejects
+  // explicit BEGIN/COMMIT. The journal is written before every row move, so a
+  // failed sequence is safe to resume or roll back.
+  await executeEach(statements);
   console.log(
     "Rollback applied. Keep the journal until hosted authentication is verified.",
   );
@@ -338,9 +347,9 @@ async function main() {
     console.log("Dry run only. Re-run with --apply after reviewing this plan.");
     return;
   }
-  await execute(
-    `BEGIN IMMEDIATE; ${journalStatements(migration).join(";\n")}; COMMIT;`,
-  );
+  // See rollback(): explicit SQLite transactions are unavailable through the
+  // remote D1 SQL API, so rely on the idempotent journal instead.
+  await executeEach(journalStatements(migration));
   console.log(
     "Migration applied. Re-run without --apply to verify there are no remaining source rows.",
   );
