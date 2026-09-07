@@ -263,7 +263,7 @@ const resolveSelfHostAccess = (
 // var). NOTE: the alchemy CLI loads `--env-file` into the Config environment,
 // NOT into process.env — a process.env read here silently yields "".
 const dataEnv = {
-  // AUTH_MODE, DATABASE_PROVIDER, BETTER_AUTH_URL, TEAM_DOMAIN, and
+  // AUTH_MODE, MANAGED_OAUTH_ENABLED, DATABASE_PROVIDER, BETTER_AUTH_URL, TEAM_DOMAIN, and
   // POLICY_AUD are stage-dependent and set in the stack body below.
   DATAFORSEO_API_KEY: Config.redacted("DATAFORSEO_API_KEY"),
   BYPASS_EMAIL_VERIFICATION: optionalVar("BYPASS_EMAIL_VERIFICATION"),
@@ -409,6 +409,7 @@ export default Alchemy.Stack(
         POSTHOG_PUBLIC_KEY: dataEnv.POSTHOG_PUBLIC_KEY,
         POSTHOG_HOST: dataEnv.POSTHOG_HOST,
         AUTH_MODE: authMode,
+        MANAGED_OAUTH_ENABLED: optionalVar("MANAGED_OAUTH_ENABLED"),
         DATABASE_PROVIDER: databaseProvider || "d1",
         ...(prodHyperdrive ? { HYPERDRIVE: prodHyperdrive } : {}),
         // This worker is the code home of the scratchpad DO and the

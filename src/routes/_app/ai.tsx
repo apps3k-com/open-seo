@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowUpRight, ShieldAlert } from "lucide-react";
+import { ArrowUpRight, ShieldAlert, ShieldCheck } from "lucide-react";
 import { getAuthMode, isHostedClientAuthMode } from "@/lib/auth-mode";
 import { captureClientEvent } from "@/client/lib/posthog";
 import { ClaudeIcon, CodexIcon } from "@/client/features/ai-mcp/AgentIcons";
@@ -43,6 +43,10 @@ export const Route = createFileRoute("/_app/ai")({
 });
 
 function AiPage() {
+  const usesCloudflareAccess =
+    getAuthMode(import.meta.env.AUTH_MODE) === "cloudflare_access";
+  const managedOAuthEnabled =
+    import.meta.env.MANAGED_OAUTH_ENABLED?.toLowerCase() === "true";
   const mcpUrl =
     typeof window === "undefined"
       ? "https://app.openseo.so/mcp"
@@ -57,20 +61,34 @@ function AiPage() {
           domain lookups, and backlink reviews from your editor or chat.
         </p>
 
-        {getAuthMode(import.meta.env.AUTH_MODE) === "cloudflare_access" ? (
-          <div className="alert alert-warning mt-6 text-sm" role="alert">
-            <ShieldAlert className="size-4 shrink-0" />
+        {usesCloudflareAccess ? (
+          <div
+            className={`alert mt-6 text-sm ${managedOAuthEnabled ? "alert-success" : "alert-warning"}`}
+            role="alert"
+          >
+            {managedOAuthEnabled ? (
+              <ShieldCheck className="size-4 shrink-0" />
+            ) : (
+              <ShieldAlert className="size-4 shrink-0" />
+            )}
             <span>
-              This instance is behind Cloudflare Access. MCP clients cannot
-              connect until Managed OAuth is enabled on your Access application.{" "}
-              <a
-                href="https://openseo.so/docs/self-hosting/cloudflare#connect-the-mcp-server-through-cloudflare-access"
-                target="_blank"
-                rel="noreferrer"
-                className="link font-medium"
-              >
-                Setup guide
-              </a>
+              {managedOAuthEnabled ? (
+                "Cloudflare Access Managed OAuth is enabled. MCP clients can connect using OAuth with PKCE."
+              ) : (
+                <>
+                  This instance is behind Cloudflare Access. MCP clients cannot
+                  connect until Managed OAuth is enabled on your Access
+                  application.{" "}
+                  <a
+                    href="https://openseo.so/docs/self-hosting/cloudflare#connect-the-mcp-server-through-cloudflare-access"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="link font-medium"
+                  >
+                    Setup guide
+                  </a>
+                </>
+              )}
             </span>
           </div>
         ) : null}

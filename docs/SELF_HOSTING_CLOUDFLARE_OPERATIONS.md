@@ -20,6 +20,10 @@ Managed OAuth is required for MCP clients and is not enabled by default.
      and log in but expose no tools.
 7. Save.
 
+When using a hand-managed Access application, set
+`MANAGED_OAUTH_ENABLED=true` in `.env.selfhost` after verifying this setting.
+OpenSEO then shows a confirmed MCP status instead of the generic setup warning.
+
 MCP clients should connect to:
 
 ```text

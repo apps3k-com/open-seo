@@ -25,6 +25,7 @@ declare namespace Cloudflare {
     AUDIT_ENGINE: Service<typeof import("./audit-worker").default>;
 
     AUTH_MODE?: "cloudflare_access" | "local_noauth" | "hosted";
+    MANAGED_OAUTH_ENABLED?: string;
     BYPASS_EMAIL_VERIFICATION?: string;
     TEAM_DOMAIN?: string;
     POLICY_AUD?: string;
@@ -67,6 +68,7 @@ declare namespace Cloudflare {
 
 interface ImportMetaEnv {
   readonly AUTH_MODE?: "cloudflare_access" | "local_noauth" | "hosted";
+  readonly MANAGED_OAUTH_ENABLED?: string;
   readonly DATABASE_PROVIDER?: "d1" | "postgres";
   readonly BYPASS_EMAIL_VERIFICATION?: string;
   readonly POSTHOG_PUBLIC_KEY?: string;
