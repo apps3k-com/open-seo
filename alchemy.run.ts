@@ -409,7 +409,6 @@ export default Alchemy.Stack(
         POSTHOG_PUBLIC_KEY: dataEnv.POSTHOG_PUBLIC_KEY,
         POSTHOG_HOST: dataEnv.POSTHOG_HOST,
         AUTH_MODE: authMode,
-        MANAGED_OAUTH_ENABLED: optionalVar("MANAGED_OAUTH_ENABLED"),
         DATABASE_PROVIDER: databaseProvider || "d1",
         ...(prodHyperdrive ? { HYPERDRIVE: prodHyperdrive } : {}),
         // This worker is the code home of the scratchpad DO and the
@@ -470,6 +469,7 @@ export default Alchemy.Stack(
         ...resources,
         ...dataEnv,
         AUTH_MODE: authMode,
+        MANAGED_OAUTH_ENABLED: optionalVar("MANAGED_OAUTH_ENABLED"),
         DATABASE_PROVIDER: databaseProvider || "d1",
         BETTER_AUTH_URL: authUrl,
         TEAM_DOMAIN: access.teamDomain,
