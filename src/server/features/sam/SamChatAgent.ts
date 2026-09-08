@@ -134,6 +134,7 @@ export class SamChatAgent extends Think {
     return buildChatAgentModel(
       apiKey,
       getEnvValueSync(this.env, "OPENROUTER_MODEL"),
+      getEnvValueSync(this.env, "OPENROUTER_BASE_URL"),
     );
   }
 

@@ -18,7 +18,8 @@ const MINIMAX_M3 = "minimax/minimax-m3";
 export async function getChatAgentModel(): Promise<LanguageModelV3> {
   const apiKey = await getRequiredEnvValue("OPENROUTER_API_KEY");
   const modelId = await getOptionalEnvValue("OPENROUTER_MODEL");
-  return buildChatAgentModel(apiKey, modelId);
+  const baseURL = await getOptionalEnvValue("OPENROUTER_BASE_URL");
+  return buildChatAgentModel(apiKey, modelId, baseURL);
 }
 
 /**
@@ -39,9 +40,10 @@ export async function getChatAgentModel(): Promise<LanguageModelV3> {
 export function buildChatAgentModel(
   apiKey: string,
   modelId?: string,
+  baseURL?: string,
 ): LanguageModelV3 {
   const model = modelId ?? DEFAULT_CHAT_AGENT_MODEL;
-  const openrouter = createOpenRouter({ apiKey });
+  const openrouter = createOpenRouter({ apiKey, baseURL });
 
   // MiniMax M3 (env-override path only): `provider.order` prefers Together,
   // then Atlas Cloud (fp8); `zdr: true` restricts routing to Zero-Data-
