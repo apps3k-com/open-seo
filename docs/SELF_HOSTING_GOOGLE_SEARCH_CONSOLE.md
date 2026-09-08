@@ -46,6 +46,15 @@ Under **APIs & Services → Credentials → Create credentials → OAuth client 
 
    The scheme, host, and port must match exactly, with no trailing slash.
 
+### Cloudflare Access deployments
+
+Google cannot attach a Cloudflare Access assertion when it redirects back to
+OpenSEO. In `cloudflare_access` mode, OpenSEO creates an Access bypass for this
+**exact callback path only**. Do not bypass `/api`, the whole hostname, or the
+authorization-start route. The callback validates the short-lived,
+HMAC-signed OAuth `state` before it exchanges a Google authorization code and
+binds the resulting grant to the user who started the flow.
+
 3. Save, then copy the **Client ID** and **Client secret**.
 
 ## 4) Set environment variables

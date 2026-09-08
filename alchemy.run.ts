@@ -11,6 +11,7 @@ import { z } from "zod";
 import {
   emailAccessGate,
   HOSTED_PROD_STAGE,
+  publicCallbackAccessBypass,
   readWorkersSubdomain,
   requireAllowedEmails,
   workerName,
@@ -365,6 +366,31 @@ export default Alchemy.Stack(
       authMode === "cloudflare_access" && !prod,
       workersSubdomain,
     );
+
+    // Google redirects the browser back to these two exact paths without an
+    // Access assertion. The handlers verify their short-lived HMAC-signed
+    // state before exchanging any authorization code, so do not widen this to
+    // `/api` or the whole hostname.
+    if (
+      authMode === "cloudflare_access" &&
+      stage === "selfhost" &&
+      selfhostDomain
+    ) {
+      yield* publicCallbackAccessBypass({
+        policyId: "SelfHostGa4OAuthCallbackBypassPolicy",
+        applicationId: "SelfHostGa4OAuthCallbackBypass",
+        policyName: `open-seo ${stage} GA4 OAuth callback bypass`,
+        applicationName: `open-seo ${stage} GA4 OAuth callback`,
+        domain: `${selfhostDomain}/api/ga4/oauth/callback`,
+      });
+      yield* publicCallbackAccessBypass({
+        policyId: "SelfHostGscOAuthCallbackBypassPolicy",
+        applicationId: "SelfHostGscOAuthCallbackBypass",
+        policyName: `open-seo ${stage} GSC OAuth callback bypass`,
+        applicationName: `open-seo ${stage} GSC OAuth callback`,
+        domain: `${selfhostDomain}/api/gsc/oauth/callback`,
+      });
+    }
 
     // Created once and bound into BOTH workers — they share the same
     // D1/KV/R2 (and prod Hyperdrive). OAUTH_KV stays app-worker-only.

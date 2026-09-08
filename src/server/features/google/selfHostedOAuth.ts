@@ -7,8 +7,6 @@ import { db } from "@/db";
 import { account } from "@/db/schema";
 import { getAuth } from "@/lib/auth";
 import { getAuthMode, isHostedAuthMode } from "@/lib/auth-mode";
-import { resolveCloudflareAccessContext } from "@/middleware/ensure-user/cloudflareAccess";
-import { resolveLocalNoAuthContext } from "@/middleware/ensure-user/delegated";
 import { AppError } from "@/server/lib/errors";
 import { responseForAppError } from "@/server/lib/http-errors";
 import { getPublicOrigin } from "@/server/mcp/public-origin";
@@ -32,7 +30,9 @@ export type SelfHostedGoogleOAuthIntegration = {
 
 type SelfHostedGoogleUser = {
   userId: string;
-  userEmail: string;
+  // Used by authorization-start callers for their Access-derived context; the
+  // signed callback state deliberately needs only the stable user ID.
+  userEmail?: string;
 };
 
 export const GSC_INTEGRATION: SelfHostedGoogleOAuthIntegration = {
@@ -318,7 +318,6 @@ export async function createSelfHostedGoogleAuthorizationUrl(input: {
 export async function handleSelfHostedGoogleOAuthCallback(input: {
   integration: SelfHostedGoogleOAuthIntegration;
   request: Request;
-  user: SelfHostedGoogleUser;
   publicOrigin: string;
 }) {
   const config = await getGoogleOAuthClientConfig();
@@ -343,14 +342,10 @@ export async function handleSelfHostedGoogleOAuthCallback(input: {
     clientSecret: config.clientSecret,
     integration: input.integration,
   });
-  if (state.userId !== input.user.userId) {
-    return new Response(
-      `${input.integration.displayName} OAuth user mismatch`,
-      {
-        status: 403,
-      },
-    );
-  }
+  // Google returns to this exact path without a Cloudflare Access assertion.
+  // The state was created only after an Access-authenticated user started the
+  // flow and binds the grant to that user with a ten-minute HMAC signature.
+  const user: SelfHostedGoogleUser = { userId: state.userId };
   const redirectToCallback = () =>
     new Response(null, {
       status: 303,
@@ -372,7 +367,7 @@ export async function handleSelfHostedGoogleOAuthCallback(input: {
   });
   await upsertGrant({
     integration: input.integration,
-    user: input.user,
+    user,
     tokens,
   });
   return redirectToCallback();
@@ -387,17 +382,9 @@ export async function handleSelfHostedGoogleOAuthCallbackRequest(
     if (isHostedAuthMode(authMode)) {
       return new Response("Not found", { status: 404 });
     }
-    const context =
-      authMode === "local_noauth"
-        ? await resolveLocalNoAuthContext()
-        : await resolveCloudflareAccessContext(request.headers);
     return await handleSelfHostedGoogleOAuthCallback({
       integration,
       request,
-      user: {
-        userId: context.userId,
-        userEmail: context.userEmail,
-      },
       publicOrigin: getPublicOrigin(request),
     });
   } catch (error) {

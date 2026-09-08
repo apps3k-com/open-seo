@@ -147,7 +147,6 @@ describe("self-hosted Google OAuth providers", () => {
     const response = await handleSelfHostedGoogleOAuthCallback({
       integration: GA4_INTEGRATION,
       request: callbackRequest(GA4_INTEGRATION, state, { code: "code-1" }),
-      user,
       publicOrigin,
     });
 
@@ -181,7 +180,6 @@ describe("self-hosted Google OAuth providers", () => {
         handleSelfHostedGoogleOAuthCallback({
           integration: GA4_INTEGRATION,
           request: callbackRequest(GA4_INTEGRATION, state, { code: "code-1" }),
-          user,
           publicOrigin,
         }),
       ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
@@ -197,7 +195,6 @@ describe("self-hosted Google OAuth providers", () => {
       request: callbackRequest(GA4_INTEGRATION, state, {
         error: "access_denied",
       }),
-      user,
       publicOrigin,
     });
 
@@ -219,7 +216,6 @@ describe("self-hosted Google OAuth providers", () => {
     const response = await handleSelfHostedGoogleOAuthCallback({
       integration: GSC_INTEGRATION,
       request: callbackRequest(GSC_INTEGRATION, state, { code: "gsc-code" }),
-      user,
       publicOrigin,
     });
 

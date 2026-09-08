@@ -42,6 +42,15 @@ and add an authorized redirect URI matching the deployment origin plus
 Keep the existing `/api/gsc/oauth/callback` URI if Search Console uses the same
 client.
 
+### Cloudflare Access deployments
+
+Google cannot attach a Cloudflare Access assertion when it redirects back to
+OpenSEO. In `cloudflare_access` mode, OpenSEO creates an Access bypass for this
+**exact callback path only**. Do not bypass `/api`, the whole hostname, or the
+authorization-start route. The callback validates the short-lived,
+HMAC-signed OAuth `state` before it exchanges a Google authorization code and
+binds the resulting grant to the user who started the flow.
+
 ## 4) Set environment variables
 
 Set these values and restart OpenSEO:

@@ -79,3 +79,30 @@ export const emailAccessGate = (options: {
       policies: [allow.policyId],
     });
   });
+
+/**
+ * Exempts one exact callback path from Cloudflare Access. The receiving
+ * application must authenticate the callback itself (for example with a
+ * short-lived, signed OAuth state); this policy intentionally provides no
+ * identity assertion to the Worker.
+ */
+export const publicCallbackAccessBypass = (options: {
+  policyId: string;
+  applicationId: string;
+  policyName: string;
+  applicationName: string;
+  domain: string;
+}) =>
+  Effect.gen(function* () {
+    const bypass = yield* Cloudflare.Access.Policy(options.policyId, {
+      name: options.policyName,
+      decision: "bypass",
+      include: [{ everyone: {} }],
+    });
+    return yield* Cloudflare.Access.Application(options.applicationId, {
+      type: "self_hosted",
+      name: options.applicationName,
+      domain: options.domain,
+      policies: [bypass.policyId],
+    });
+  });
