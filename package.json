@@ -83,7 +83,7 @@
     "@every-app/sdk": "^0.1.14",
     "@modelcontextprotocol/client": "2.0.0",
     "@modelcontextprotocol/sdk": "1.30.0",
-    "@modelcontextprotocol/server": "2.0.0",
+    "@modelcontextprotocol/server": "2.3.0",
     "@openrouter/ai-sdk-provider": "^2.9.0",
     "@tanstack/query-core": "^5.101.2",
     "@tanstack/react-form": "^1.33.0",
