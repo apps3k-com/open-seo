@@ -12,6 +12,40 @@ afterEach(() => {
 });
 
 describe("fetchLighthouseResult", () => {
+  it.each(["mobile", "desktop"] as const)(
+    "requests a device-appropriate Lighthouse browser identity for %s",
+    async (strategy) => {
+      const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+        Response.json({
+          status_code: 20000,
+          tasks: [
+            {
+              status_code: 20000,
+              cost: 0.005,
+              path: ["v3", "on_page", "lighthouse", "live", "json"],
+              result: [
+                {
+                  categories: { performance: { score: 0.47 } },
+                  audits: { "http-status-code": { score: 1 } },
+                },
+              ],
+            },
+          ],
+        }),
+      );
+      vi.stubGlobal("fetch", fetchMock);
+      await fetchLighthouseResult({ url: "https://example.com/", strategy });
+      const request = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
+      expect(request[0]).toMatchObject({
+        for_mobile: strategy === "mobile",
+        custom_user_agent: expect.stringContaining(
+          strategy === "mobile" ? "Android" : "Macintosh",
+        ),
+      });
+      expect(request[0].custom_user_agent).toContain("Chrome-Lighthouse");
+    },
+  );
+
   it("carries billing metadata when parsing fails after a billed success", async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
       Response.json({

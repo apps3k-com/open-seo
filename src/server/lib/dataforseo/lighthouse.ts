@@ -52,6 +52,14 @@ export async function fetchLighthouseResult(input: {
         {
           url: input.url,
           for_mobile: input.strategy === "mobile",
+          // Use a device-appropriate browser identity with the audit marker.
+          // The provider's default headless identity can receive a Shopify
+          // challenge instead of the storefront. No crawler credentials are
+          // forwarded: this API does not support custom request headers.
+          custom_user_agent:
+            input.strategy === "mobile"
+              ? "Mozilla/5.0 (Linux; Android 11; moto g power) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Mobile Safari/537.36 Chrome-Lighthouse"
+              : "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 Chrome-Lighthouse",
           categories: [...requestCategories],
         },
       ],
