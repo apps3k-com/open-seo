@@ -17,7 +17,7 @@ const grants = sqliteTable("account", {
   updatedAt: integer("updated_at").notNull(),
 });
 
-it("keeps one refreshable grant per user and Google identity without changing project bindings", async () => {
+it("fails on duplicate grants without deleting them, then preserves distinct grants", async () => {
   const directory = mkdtempSync(join(tmpdir(), "google-grant-migration-"));
   const client = createClient({ url: `file:${join(directory, "test.db")}` });
   try {
@@ -50,12 +50,27 @@ it("keeps one refreshable grant per user and Google identity without changing pr
       "drizzle/sqlite/0050_famous_crystal.sql",
       "utf8",
     ).replaceAll("--> statement-breakpoint", "");
+    await expect(client.executeMultiple(migration)).rejects.toThrow();
+
+    const beforeReconciliation = await client.execute(
+      "SELECT id FROM account WHERE provider_id = 'google-search-console' ORDER BY id",
+    );
+    expect(beforeReconciliation.rows.map((row) => row.id)).toEqual([
+      "new-no-refresh",
+      "old-refresh",
+      "other-user",
+    ]);
+    // Model a separate, reviewed reconciliation that retains both records.
+    await client.execute(
+      "UPDATE account SET account_id = 'google-2' WHERE id = 'new-no-refresh'",
+    );
     await client.executeMultiple(migration);
 
     const existingGrants = await client.execute(
       "SELECT id FROM account WHERE provider_id = 'google-search-console' ORDER BY id",
     );
     expect(existingGrants.rows.map((row) => row.id)).toEqual([
+      "new-no-refresh",
       "old-refresh",
       "other-user",
     ]);

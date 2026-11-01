@@ -84,11 +84,20 @@ export async function resolveSharedWorkspaceContext(
   userId: string,
   userEmail: string,
 ): Promise<EnsuredUserContext> {
-  const ensuredEmail = await ensureUserRecord(userId, userEmail);
+  // Earlier self-hosted releases could create the user through Better Auth,
+  // whose id differs from Cloudflare Access's JWT subject. Reuse that row by
+  // the Access-verified email so OAuth grants and other user-id references
+  // remain attached to the existing account during upgrades.
+  const existingByEmail = await db.query.user.findFirst({
+    columns: { id: true },
+    where: eq(user.email, userEmail),
+  });
+  const resolvedUserId = existingByEmail?.id ?? userId;
+  const ensuredEmail = await ensureUserRecord(resolvedUserId, userEmail);
   const organizationId = await ensureSharedWorkspaceOrganization();
 
   return {
-    userId,
+    userId: resolvedUserId,
     userEmail: ensuredEmail,
     emailVerified: true,
     organizationId,

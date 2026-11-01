@@ -264,6 +264,7 @@ async function relevantQuestions(
       input.openRouter,
       await getOptionalEnvValue("OPENROUTER_MODEL"),
       "low",
+      await getOptionalEnvValue("OPENROUTER_BASE_URL"),
     ),
     output: Output.object({ schema: relevanceOutputSchema }),
     maxOutputTokens: 4000,

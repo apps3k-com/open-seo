@@ -1,3 +1,3 @@
-ALTER TABLE `audit_pages` DROP COLUMN `heading_order_json`;--> statement-breakpoint
-ALTER TABLE `audit_pages` DROP COLUMN `images_json`;--> statement-breakpoint
-ALTER TABLE `audit_pages` DROP COLUMN `hreflang_tags_json`;
+-- Preserve historical audit-page fields. The application no longer reads them,
+-- and extra SQLite columns do not affect its current schema mapping.
+SELECT 1;

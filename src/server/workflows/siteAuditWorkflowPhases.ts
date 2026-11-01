@@ -211,15 +211,16 @@ export async function runLighthousePhase(
 
   let completedChecks = 0;
   let failedChecks = 0;
+  // Each URL starts two full browsers. Shopify can challenge the ten-browser
+  // burst even when the lightweight crawl was authorized and successful.
+  const urlConcurrency =
+    config.sitePlatform === "shopify" ? 1 : LIGHTHOUSE_URL_CONCURRENCY;
   for (
     let chunkStart = 0;
     chunkStart < lighthouseWork.length;
-    chunkStart += LIGHTHOUSE_URL_CONCURRENCY
+    chunkStart += urlConcurrency
   ) {
-    const chunk = lighthouseWork.slice(
-      chunkStart,
-      chunkStart + LIGHTHOUSE_URL_CONCURRENCY,
-    );
+    const chunk = lighthouseWork.slice(chunkStart, chunkStart + urlConcurrency);
 
     // The paid calls are checkpointed separately from all storage. With
     // Workflow retries disabled, a later R2/DB/progress failure cannot replay
@@ -255,12 +256,15 @@ export async function runLighthousePhase(
       );
     });
 
-    const chunkIndex = Math.floor(chunkStart / LIGHTHOUSE_URL_CONCURRENCY) + 1;
+    const chunkIndex = Math.floor(chunkStart / urlConcurrency) + 1;
     const priorCompleted = completedChecks;
     const priorFailed = failedChecks;
     const counts = await pgStep(
       step,
-      `lighthouse-persist-chunk-${chunkIndex}`,
+      // Different batch boundaries must not reuse an old five-URL checkpoint.
+      config.sitePlatform === "shopify"
+        ? `lighthouse-persist-shopify-chunk-${chunkIndex}`
+        : `lighthouse-persist-chunk-${chunkIndex}`,
       LIGHTHOUSE_PERSIST_STEP,
       async () => {
         const results = await Promise.all(
@@ -309,7 +313,7 @@ async function selectLighthousePages(params: {
       startUrl,
       strategy,
     );
-    const selectedUrls = new Set(sample);
+    const pagesByUrl = new Map(crawledPages.map((page) => [page.url, page]));
 
     await AuditRepository.updateAuditProgress(auditId, workflowInstanceId, {
       currentPhase: "lighthouse",
@@ -317,9 +321,12 @@ async function selectLighthousePages(params: {
       lighthouseCompleted: 0,
       lighthouseFailed: 0,
     });
-    return crawledPages.flatMap((page) =>
-      selectedUrls.has(page.url) ? [{ url: page.url, pageId: page.id }] : [],
-    );
+    // Keep the sampler's start-page priority before secondary URLs consume
+    // the site's crawl budget.
+    return sample.flatMap((url) => {
+      const page = pagesByUrl.get(url);
+      return page ? [{ url, pageId: page.id }] : [];
+    });
   });
 }
 

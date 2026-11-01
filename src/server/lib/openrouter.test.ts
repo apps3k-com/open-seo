@@ -47,3 +47,22 @@ it("stays on OpenAI when the country lookup fails", async () => {
     }),
   ).toBe("openai/gpt-5.6-luna");
 });
+
+it("routes a gateway model to the configured base URL", async () => {
+  const fetchMock = vi
+    .spyOn(globalThis, "fetch")
+    .mockResolvedValue(completion());
+  const { buildChatAgentModel } = await import("./openrouter");
+  await generateText({
+    model: buildChatAgentModel(
+      { apiKey: "gateway-key" },
+      "openrouter/deepseek-v4-flash",
+      "low",
+      "https://llm.example.com/v1",
+    ),
+    prompt: "hi",
+  });
+  expect(String(fetchMock.mock.calls[0]?.[0])).toContain(
+    "https://llm.example.com/v1/chat/completions",
+  );
+});

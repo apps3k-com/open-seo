@@ -276,6 +276,7 @@ const dataEnv = {
   GOOGLE_MAPS_API_KEY: optionalSecret("GOOGLE_MAPS_API_KEY"),
   OPENROUTER_API_KEY: optionalSecret("OPENROUTER_API_KEY"),
   OPENROUTER_MODEL: optionalVar("OPENROUTER_MODEL"),
+  OPENROUTER_BASE_URL: optionalVar("OPENROUTER_BASE_URL"),
   CONTEXT_API_KEY: optionalSecret("CONTEXT_API_KEY"),
   AUTUMN_SECRET_KEY: optionalSecret("AUTUMN_SECRET_KEY"),
   AUTUMN_WEBHOOK_SECRET: optionalSecret("AUTUMN_WEBHOOK_SECRET"),
@@ -302,6 +303,7 @@ const dataEnv = {
   // must come from the env file / GitHub environment — a dashboard-set one
   // would be wiped.
   OPENSEO_TELEMETRY_DISABLED: optionalVar("OPENSEO_TELEMETRY_DISABLED"),
+  MANAGED_OAUTH_ENABLED: optionalVar("MANAGED_OAUTH_ENABLED"),
 };
 
 export default Alchemy.Stack(
@@ -332,6 +334,34 @@ export default Alchemy.Stack(
         ),
       );
     }
+    const selfhostDomain = yield* optionalVar("SELFHOST_DOMAIN");
+    if (stage === "selfhost" && selfhostDomain) {
+      // Fail even when alchemy is invoked directly without deploy:selfhost.
+      // An incomplete render must never erase a working Google connection.
+      const googleClientId = yield* Config.string("GOOGLE_CLIENT_ID");
+      const googleClientSecret = yield* Config.string("GOOGLE_CLIENT_SECRET");
+      const tokenSecret = yield* Config.string("BETTER_AUTH_SECRET");
+      if (
+        !googleClientId.trim() ||
+        !googleClientSecret.trim() ||
+        tokenSecret.trim().length < 32
+      ) {
+        return yield* Effect.die(
+          new Error(
+            "Custom-domain Google OAuth requires GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET and the existing BETTER_AUTH_SECRET (at least 32 characters).",
+          ),
+        );
+      }
+      const teamDomain = yield* optionalVar("TEAM_DOMAIN");
+      const policyAud = yield* optionalVar("POLICY_AUD");
+      if (authMode !== "cloudflare_access" || !teamDomain || !policyAud) {
+        return yield* Effect.die(
+          new Error(
+            "A custom self-host domain requires AUTH_MODE=cloudflare_access and the existing TEAM_DOMAIN and POLICY_AUD; refusing to create a new Access application.",
+          ),
+        );
+      }
+    }
     const workersSubdomain = yield* readWorkersSubdomain({ required: false });
 
     // Auth needs an absolute BETTER_AUTH_URL. Prod sets it explicitly;
@@ -347,6 +377,9 @@ export default Alchemy.Stack(
           ),
         );
       }
+    } else if (stage === "selfhost" && selfhostDomain) {
+      // Google redirects and existing tokens belong to the custom origin.
+      authUrl = `https://${selfhostDomain}`;
     } else if (workersSubdomain) {
       authUrl = `https://${workerName(stage)}.${workersSubdomain}`;
     } else if (authMode === "password") {
@@ -461,7 +494,11 @@ export default Alchemy.Stack(
     const app = yield* Cloudflare.Worker("open-seo", {
       name: workerName(stage),
       // Prod serves the real domains; the zone is inferred from the hostname.
-      domain: prod ? ["app.openseo.so", "www.app.openseo.so"] : undefined,
+      domain: prod
+        ? ["app.openseo.so", "www.app.openseo.so"]
+        : stage === "selfhost" && selfhostDomain
+          ? [selfhostDomain]
+          : undefined,
       // Prebuilt worker from `vite build` (@cloudflare/vite-plugin). The entry
       // exports the DO + WorkflowEntrypoint classes (re-exported by
       // src/server.ts), which `bundle: false` requires. Sibling chunks under

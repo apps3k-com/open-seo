@@ -79,6 +79,7 @@ export async function generateAiPrompts(
       await requireOpenRouterAccess(),
       await getOptionalEnvValue("OPENROUTER_MODEL"),
       "low",
+      await getOptionalEnvValue("OPENROUTER_BASE_URL"),
     ),
     output: Output.object({ schema: outputSchema }),
     maxOutputTokens: 2000,

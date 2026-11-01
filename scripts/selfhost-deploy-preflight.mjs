@@ -9,6 +9,10 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import chalk from "chalk";
+import {
+  validateGoogleOAuthDeployment,
+  verifyGoogleCallbackAccess,
+} from "./selfhost-google-contract.mjs";
 
 const cmd = chalk.cyan;
 const em = chalk.yellow;
@@ -63,12 +67,32 @@ if (!AUTH_MODES.includes(authMode)) {
 // needs ACCESS_ALLOWED_EMAILS or the access:write login scope.
 const managedAccess =
   authMode === "cloudflare_access" && !(env.TEAM_DOMAIN && env.POLICY_AUD);
+if (
+  env.SELFHOST_DOMAIN &&
+  (env.AUTH_MODE !== "cloudflare_access" || managedAccess)
+) {
+  fail(
+    `${em("SELFHOST_DOMAIN")} requires AUTH_MODE=cloudflare_access plus the existing TEAM_DOMAIN and POLICY_AUD.`,
+    "Refusing to provision a new Access application for the custom domain.",
+  );
+}
 if (managedAccess && !env.ACCESS_ALLOWED_EMAILS) {
   fail(
     `${em("ACCESS_ALLOWED_EMAILS")} is not set in ${envFile} — list who may sign in through`,
     "Cloudflare Access (comma-separated emails), or set TEAM_DOMAIN and POLICY_AUD",
     "to manage the Access application yourself.",
   );
+}
+
+// Existing custom-domain installations must retain the complete Google client
+// and token-encryption configuration, and callbacks must carry an Access JWT.
+if (env.SELFHOST_DOMAIN) {
+  try {
+    validateGoogleOAuthDeployment(env);
+    await verifyGoogleCallbackAccess(env.SELFHOST_DOMAIN);
+  } catch (error) {
+    fail(error instanceof Error ? error.message : String(error));
+  }
 }
 
 // An explicit API token bypasses login profiles entirely.

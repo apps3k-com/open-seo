@@ -105,6 +105,74 @@ describe("runLighthousePhase", () => {
     );
     insertLighthouseResultsMock.mockResolvedValue(undefined);
     updateAuditProgressMock.mockResolvedValue(undefined);
+    pgStepMock.mockImplementation(
+      async (
+        _step: unknown,
+        _name: string,
+        _config: unknown,
+        callback: () => Promise<unknown>,
+      ) => callback(),
+    );
+  });
+
+  it.each([
+    { sitePlatform: "shopify" as const, peakExpected: 2 },
+    { sitePlatform: undefined, peakExpected: 6 },
+  ])(
+    "bounds simultaneous browsers for platform $sitePlatform",
+    async ({ sitePlatform, peakExpected }) => {
+      const urls = [
+        "https://example.com/",
+        "https://example.com/a",
+        "https://example.com/b",
+      ];
+      getPagesForAuditMock.mockResolvedValue(
+        urls.map((url, i) => ({ id: `page-${i}`, url, statusCode: 200 })),
+      );
+      selectLighthouseSampleMock.mockReturnValue(urls);
+      let running = 0;
+      let peak = 0;
+      fetchLighthouseResultMock.mockImplementation(
+        async (_url: string, pageId: string, strategy: "mobile" | "desktop") => {
+          peak = Math.max(peak, ++running);
+          await Promise.resolve();
+          running--;
+          return { result: { pageId, strategy }, payloadJson: "{}" };
+        },
+      );
+      // pgStep is mocked above; the WorkflowStep object is never read.
+      // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+      await runLighthousePhase({} as never, {
+        ...PHASE_PARAMS,
+        config: { ...PHASE_PARAMS.config, sitePlatform },
+      });
+      expect(peak).toBe(peakExpected);
+      expect(fetchLighthouseResultMock).toHaveBeenCalledTimes(6);
+      if (sitePlatform === "shopify") {
+        expect(
+          pgStepMock.mock.calls.some(
+            (call) => call[1] === "lighthouse-persist-shopify-chunk-1",
+          ),
+        ).toBe(true);
+      }
+    },
+  );
+
+  it("preserves the sampler's start-page priority over database row order", async () => {
+    getPagesForAuditMock.mockResolvedValue([
+      { id: "secondary", url: "https://example.com/about", statusCode: 200 },
+      { id: "start", url: "https://example.com/", statusCode: 200 },
+    ]);
+    selectLighthouseSampleMock.mockReturnValue([
+      "https://example.com/",
+      "https://example.com/about",
+    ]);
+    // pgStep is mocked above; the WorkflowStep object is never read.
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+    await runLighthousePhase({} as never, PHASE_PARAMS);
+    expect(fetchLighthouseResultMock.mock.calls[0]?.[0]).toBe(
+      "https://example.com/",
+    );
   });
 
   it("does not replay paid calls when persistence retries", async () => {

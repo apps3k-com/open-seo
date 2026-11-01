@@ -66,6 +66,7 @@ export function buildSamChatModel(
     access,
     getEnvValueSync(env, "OPENROUTER_MODEL"),
     reasoningEffort,
+    getEnvValueSync(env, "OPENROUTER_BASE_URL"),
   );
 }
 
@@ -138,11 +139,15 @@ export function buildChatAgentModel(
   access: OpenRouterAccess,
   modelId?: string,
   reasoningEffort: "max" | "low" = "max",
+  baseURL?: string,
 ): LanguageModelV3 {
   const model = modelId ?? DEFAULT_CHAT_AGENT_MODEL;
   const openrouter =
     "apiKey" in access
-      ? createOpenRouter({ apiKey: access.apiKey })
+      ? createOpenRouter({
+          apiKey: access.apiKey,
+          ...(baseURL ? { baseURL } : {}),
+        })
       : createOpenRouter({
           apiKey: "gateway-managed",
           baseURL: GATEWAY_BASE_URL,

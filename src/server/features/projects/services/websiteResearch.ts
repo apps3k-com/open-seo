@@ -170,6 +170,7 @@ export async function researchWebsite(
           await requireOpenRouterAccess(),
           await getOptionalEnvValue("OPENROUTER_MODEL"),
           "low",
+          await getOptionalEnvValue("OPENROUTER_BASE_URL"),
         ),
         output: Output.object({
           schema: outputSchema,
