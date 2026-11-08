@@ -22,6 +22,9 @@ const lighthouseResponseSchema = z.object({
   requestedUrl: z.string().optional(),
   finalUrl: z.string().optional(),
   lighthouseVersion: z.string().optional(),
+  runtimeError: z
+    .object({ code: z.string(), message: z.string().optional() })
+    .optional(),
   // Only the key map is copied here, so the multi-MB category/audit bodies stay
   // as the provider's own objects. Deep-parsing them cloned the whole report a
   // second time and pushed the audit worker over its memory limit.
@@ -93,6 +96,20 @@ export function parseDataforseoLighthousePayload(
   const fetchedAt = new Date().toISOString();
   const categories = result.categories ?? {};
   const audits = result.audits ?? {};
+  // The provider can return a successful, billed task with category scores
+  // for an HTTP error/challenge page. Those scores do not measure the site.
+  if (result.runtimeError) {
+    throw new Error(
+      `Invalid Lighthouse measurement: ${result.runtimeError.code}`,
+    );
+  }
+  const httpStatus = audits["http-status-code"];
+  if (httpStatus?.score === 0) {
+    const status = httpStatus.displayValue?.match(/\b[45]\d{2}\b/)?.[0];
+    throw new Error(
+      `Invalid Lighthouse measurement: the measured document returned ${status ? `HTTP ${status}` : "an unsuccessful HTTP status"}. Authorize the Lighthouse provider to access the site before measuring again.`,
+    );
+  }
   const issueReport = buildStoredLighthouseIssues({ audits, categories });
   const metrics = buildStoredLighthouseMetrics({ audits });
   const storedPayload: StoredLighthousePayload = {

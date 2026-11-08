@@ -342,6 +342,7 @@ const dataEnv = {
   // must come from the env file / GitHub environment — a dashboard-set one
   // would be wiped.
   OPENSEO_TELEMETRY_DISABLED: optionalVar("OPENSEO_TELEMETRY_DISABLED"),
+  MANAGED_OAUTH_ENABLED: optionalVar("MANAGED_OAUTH_ENABLED"),
 };
 
 export default Alchemy.Stack(
@@ -372,8 +373,36 @@ export default Alchemy.Stack(
         ),
       );
     }
+    const selfhostDomain = yield* optionalVar("SELFHOST_DOMAIN");
+    if (stage === "selfhost" && selfhostDomain) {
+      // Fail even when alchemy is invoked directly without deploy:selfhost.
+      // An incomplete render must never erase a working Google connection.
+      const googleClientId = yield* Config.string("GOOGLE_CLIENT_ID");
+      const googleClientSecret = yield* Config.string("GOOGLE_CLIENT_SECRET");
+      const tokenSecret = yield* Config.string("BETTER_AUTH_SECRET");
+      if (
+        !googleClientId.trim() ||
+        !googleClientSecret.trim() ||
+        tokenSecret.trim().length < 32
+      ) {
+        return yield* Effect.die(
+          new Error(
+            "Custom-domain Google OAuth requires GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET and the existing BETTER_AUTH_SECRET (at least 32 characters).",
+          ),
+        );
+      }
+      const teamDomain = yield* optionalVar("TEAM_DOMAIN");
+      const policyAud = yield* optionalVar("POLICY_AUD");
+      if (authMode !== "cloudflare_access" || !teamDomain || !policyAud) {
+        return yield* Effect.die(
+          new Error(
+            "A custom self-host domain requires AUTH_MODE=cloudflare_access and the existing TEAM_DOMAIN and POLICY_AUD; refusing to create a new Access application.",
+          ),
+        );
+      }
+    }
     const workersSubdomain = yield* readWorkersSubdomain({ required: false });
-    const customDomain = yield* readCustomDomain(prod);
+    const customDomain = (yield* readCustomDomain(prod)) || selfhostDomain;
 
     // Auth needs an absolute BETTER_AUTH_URL. Prod sets it explicitly;
     // previews always derive it from the deterministic worker name — a wrong

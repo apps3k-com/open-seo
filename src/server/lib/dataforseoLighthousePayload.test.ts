@@ -3,6 +3,54 @@ import { parseDataforseoLighthousePayload } from "@/server/lib/dataforseoLightho
 import { readStoredLighthousePayload } from "@/server/lib/lighthousePayload";
 
 describe("parseDataforseoLighthousePayload", () => {
+  it("rejects a highly scored HTTP 429 challenge instead of publishing its metrics", () => {
+    expect(() =>
+      parseDataforseoLighthousePayload(
+        {
+          status_code: 20000,
+          tasks: [
+            {
+              status_code: 20000,
+              result: [
+                {
+                  categories: { performance: { score: 0.93 } },
+                  audits: {
+                    "http-status-code": { score: 0, displayValue: "429" },
+                  },
+                },
+              ],
+            },
+          ],
+        },
+        { url: "https://example.com/product", strategy: "mobile" },
+      ),
+    ).toThrow(
+      "Invalid Lighthouse measurement: the measured document returned HTTP 429",
+    );
+  });
+
+  it("rejects a Lighthouse navigation error even if scores are present", () => {
+    expect(() =>
+      parseDataforseoLighthousePayload(
+        {
+          status_code: 20000,
+          tasks: [
+            {
+              status_code: 20000,
+              result: [
+                {
+                  runtimeError: { code: "ERRORED_DOCUMENT_REQUEST" },
+                  categories: { performance: { score: 0.93 } },
+                },
+              ],
+            },
+          ],
+        },
+        { url: "https://example.com/product", strategy: "mobile" },
+      ),
+    ).toThrow("Invalid Lighthouse measurement: ERRORED_DOCUMENT_REQUEST");
+  });
+
   it("stores only issue-level lighthouse data and key metadata", () => {
     const parsed = parseDataforseoLighthousePayload(
       {

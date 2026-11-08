@@ -28,12 +28,23 @@ Under **APIs & Services → OAuth consent screen**:
 - While the app is in **Testing**, add the Google accounts that will connect as
   **test users** — otherwise Google blocks the sign-in with `access_denied`.
 
-Once the test users can connect, click **Publish app** on the OAuth consent
-screen to move it from **Testing** to **In production**. Google expires refresh
-tokens for External apps in Testing after 7 days, so a Testing app makes Search
-Console disconnect every week. You don't need to submit for verification for
-personal or internal use: Google shows an "unverified app" warning during
-sign-in, which you can click through.
+For a long-running installation, publish the external app to **Production**
+before connecting accounts. Google expires refresh tokens issued in **Testing**
+after seven days when data scopes such as Search Console or Analytics are
+requested. Publishing and Google's verification review are separate steps;
+complete any verification required for your intended audience. See
+[Google's refresh-token expiration rules](https://developers.google.com/identity/protocols/oauth2/#expiration).
+
+When using Cloudflare Access, protect both `/api/gsc/oauth/callback` and
+`/api/ga4/oauth/callback` with the same Access application as the UI. Do not add
+path bypasses: the callback verifies the signed-in user's Access JWT before
+consuming the OAuth state.
+
+During upgrades, retain the existing OAuth client and `BETTER_AUTH_SECRET`.
+Changing the client requires fresh Google consent; changing the encryption
+secret without a migration makes stored grants unreadable. After deploying,
+check a real property-list or report request and the reconnect path as well as
+the displayed connection status.
 
 ## 3) Create an OAuth client ID
 
