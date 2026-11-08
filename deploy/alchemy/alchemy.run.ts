@@ -393,10 +393,13 @@ export default Alchemy.Stack(
       }
       const teamDomain = yield* optionalVar("TEAM_DOMAIN");
       const policyAud = yield* optionalVar("POLICY_AUD");
-      if (authMode !== "cloudflare_access" || !teamDomain || !policyAud) {
+      if (
+        authMode !== "password" &&
+        (authMode !== "cloudflare_access" || !teamDomain || !policyAud)
+      ) {
         return yield* Effect.die(
           new Error(
-            "A custom self-host domain requires AUTH_MODE=cloudflare_access and the existing TEAM_DOMAIN and POLICY_AUD; refusing to create a new Access application.",
+            "A custom self-host domain requires AUTH_MODE=password or AUTH_MODE=cloudflare_access with the existing TEAM_DOMAIN and POLICY_AUD; refusing to create a new Access application.",
           ),
         );
       }

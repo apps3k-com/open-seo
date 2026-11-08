@@ -69,10 +69,11 @@ const managedAccess =
   authMode === "cloudflare_access" && !(env.TEAM_DOMAIN && env.POLICY_AUD);
 if (
   env.SELFHOST_DOMAIN &&
-  (env.AUTH_MODE !== "cloudflare_access" || managedAccess)
+  authMode !== "password" &&
+  (authMode !== "cloudflare_access" || managedAccess)
 ) {
   fail(
-    `${em("SELFHOST_DOMAIN")} requires AUTH_MODE=cloudflare_access plus the existing TEAM_DOMAIN and POLICY_AUD.`,
+    `${em("SELFHOST_DOMAIN")} requires AUTH_MODE=password or AUTH_MODE=cloudflare_access plus the existing TEAM_DOMAIN and POLICY_AUD.`,
     "Refusing to provision a new Access application for the custom domain.",
   );
 }
@@ -89,7 +90,8 @@ if (managedAccess && !env.ACCESS_ALLOWED_EMAILS) {
 if (env.SELFHOST_DOMAIN) {
   try {
     validateGoogleOAuthDeployment(env);
-    await verifyGoogleCallbackAccess(env.SELFHOST_DOMAIN);
+    if (authMode === "cloudflare_access")
+      await verifyGoogleCallbackAccess(env.SELFHOST_DOMAIN);
   } catch (error) {
     fail(error instanceof Error ? error.message : String(error));
   }

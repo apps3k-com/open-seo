@@ -51,7 +51,7 @@ A reset signs that user out everywhere. `pnpm selfhost:admin create-user you@exa
 
 Existing users keep their data, but they signed in through Cloudflare and have no password, and registration is closed once any user exists, so give each of them a password:
 
-1. Set `AUTH_MODE=password` and `OPENSEO_OPERATOR_SECRET` in `.env.selfhost` and redeploy. The deploy removes the Access application it created, so the app is reachable without Cloudflare's login from then on.
+1. Set `AUTH_MODE=password` and `OPENSEO_OPERATOR_SECRET` in `.env.selfhost` and redeploy. The deploy removes the Access application it created, so the app is reachable without Cloudflare's login from then on. For an existing custom domain, preserve its Google client and the original `BETTER_AUTH_SECRET`, which also encrypts saved Google tokens. If Access was configured separately (`TEAM_DOMAIN` and `POLICY_AUD`), Alchemy does not own or remove that application: retire its login gate separately only after native authentication is ready.
 2. Find each user's id in the `user` table of the `open-seo-db-selfhost` D1 database (Cloudflare dashboard, Storage & Databases, D1).
 3. For each user, with the password on standard input as above:
 
@@ -59,7 +59,9 @@ Existing users keep their data, but they signed in through Cloudflare and have n
 OPENSEO_URL=https://YOUR_WORKER_HOSTNAME pnpm selfhost:admin claim-legacy-user USER_ID you@example.com shared-workspace
 ```
 
-Everyone shares the `shared-workspace` organization; the command makes the user one of its owners.
+Everyone shares the `shared-workspace` organization; the command makes the user one of its owners. An existing password account may already belong to a different organization; verify its membership in the organization holding the projects before switching modes. Keep the original user ID so its Google grants remain attached.
+
+MCP clients must reconnect to the same `/mcp` URL using OpenSEO's own OAuth issuer after this switch. The old Cloudflare Access grant does not become an OpenSEO grant; no authentication bridge is required.
 
 ## AI visibility tracking
 
