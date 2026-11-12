@@ -133,7 +133,11 @@ describe("runLighthousePhase", () => {
       let running = 0;
       let peak = 0;
       fetchLighthouseResultMock.mockImplementation(
-        async (_url: string, pageId: string, strategy: "mobile" | "desktop") => {
+        async (
+          _url: string,
+          pageId: string,
+          strategy: "mobile" | "desktop",
+        ) => {
           peak = Math.max(peak, ++running);
           await Promise.resolve();
           running--;

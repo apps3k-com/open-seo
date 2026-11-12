@@ -338,6 +338,12 @@ const dataEnv = {
   ),
   TURNSTILE_SECRET_KEY: optionalSecret("TURNSTILE_SECRET_KEY"),
   TURNSTILE_SITE_KEY: optionalVar("TURNSTILE_SITE_KEY"),
+  // Trustpilot review invitations (src/server/trustpilot). Unset = inert.
+  TRUSTPILOT_API_KEY: optionalSecret("TRUSTPILOT_API_KEY"),
+  TRUSTPILOT_API_SECRET: optionalSecret("TRUSTPILOT_API_SECRET"),
+  TRUSTPILOT_BUSINESS_UNIT_ID: optionalVar("TRUSTPILOT_BUSINESS_UNIT_ID"),
+  TRUSTPILOT_BUSINESS_USER_ID: optionalVar("TRUSTPILOT_BUSINESS_USER_ID"),
+  TRUSTPILOT_TEMPLATE_ID: optionalVar("TRUSTPILOT_TEMPLATE_ID"),
   // Alchemy reconciles worker vars and secrets on every deploy, so every value
   // must come from the env file / GitHub environment — a dashboard-set one
   // would be wiped.
@@ -345,34 +351,8 @@ const dataEnv = {
   MANAGED_OAUTH_ENABLED: optionalVar("MANAGED_OAUTH_ENABLED"),
 };
 
-export default Alchemy.Stack(
-  "open-seo",
-  {
-    providers: Cloudflare.providers(),
-    // Durable state in the Cloudflare state store (an `alchemy-state-store`
-    // Worker on this account; one-time `pnpm alchemy cloudflare bootstrap`).
-    // CI fetches its auth token from the account Secrets Store each run.
-    state: Cloudflare.state(),
-  },
+const readSelfhostDomain = (stage: string, authMode: string) =>
   Effect.gen(function* () {
-    const stage = yield* Alchemy.Stage;
-    const prod = stage === HOSTED_PROD_STAGE;
-    // Fail closed: an unset AUTH_MODE gets the Access-gated mode (matching the
-    // app's own default in src/lib/auth-mode.ts), never public hosted signup.
-    // New self-host deployments get AUTH_MODE=password from deploy/.env.selfhost.example;
-    // hosted/local_noauth must be set explicitly.
-    const authMode = yield* Config.string("AUTH_MODE").pipe(
-      Config.withDefault("cloudflare_access"),
-    );
-    const databaseProvider = yield* optionalVar("DATABASE_PROVIDER");
-    const hyperdriveId = prod ? yield* Config.string("HYPERDRIVE_ID") : "";
-    if (prod && (authMode !== "hosted" || databaseProvider !== "postgres")) {
-      return yield* Effect.die(
-        new Error(
-          "hosted-prod requires AUTH_MODE=hosted and DATABASE_PROVIDER=postgres.",
-        ),
-      );
-    }
     const selfhostDomain = yield* optionalVar("SELFHOST_DOMAIN");
     if (stage === "selfhost" && selfhostDomain) {
       // Fail even when alchemy is invoked directly without deploy:selfhost.
@@ -404,6 +384,38 @@ export default Alchemy.Stack(
         );
       }
     }
+    return selfhostDomain;
+  });
+
+export default Alchemy.Stack(
+  "open-seo",
+  {
+    providers: Cloudflare.providers(),
+    // Durable state in the Cloudflare state store (an `alchemy-state-store`
+    // Worker on this account; one-time `pnpm alchemy cloudflare bootstrap`).
+    // CI fetches its auth token from the account Secrets Store each run.
+    state: Cloudflare.state(),
+  },
+  Effect.gen(function* () {
+    const stage = yield* Alchemy.Stage;
+    const prod = stage === HOSTED_PROD_STAGE;
+    // Fail closed: an unset AUTH_MODE gets the Access-gated mode (matching the
+    // app's own default in src/lib/auth-mode.ts), never public hosted signup.
+    // New self-host deployments get AUTH_MODE=password from deploy/.env.selfhost.example;
+    // hosted/local_noauth must be set explicitly.
+    const authMode = yield* Config.string("AUTH_MODE").pipe(
+      Config.withDefault("cloudflare_access"),
+    );
+    const databaseProvider = yield* optionalVar("DATABASE_PROVIDER");
+    const hyperdriveId = prod ? yield* Config.string("HYPERDRIVE_ID") : "";
+    if (prod && (authMode !== "hosted" || databaseProvider !== "postgres")) {
+      return yield* Effect.die(
+        new Error(
+          "hosted-prod requires AUTH_MODE=hosted and DATABASE_PROVIDER=postgres.",
+        ),
+      );
+    }
+    const selfhostDomain = yield* readSelfhostDomain(stage, authMode);
     const workersSubdomain = yield* readWorkersSubdomain({ required: false });
     const customDomain = (yield* readCustomDomain(prod)) || selfhostDomain;
 
@@ -464,8 +476,7 @@ export default Alchemy.Stack(
 
     // Self-host deploys may run on the free Workers plan, which rejects the
     // paid-plan CPU limits below.
-    const selfHostPlan =
-      authMode === "cloudflare_access" || authMode === "password";
+    const selfHostPlan = ["cloudflare_access", "password"].includes(authMode);
 
     // Created once and bound into BOTH workers — they share the same
     // D1/KV/R2 (and prod Hyperdrive). OAUTH_KV and FLAGS stay

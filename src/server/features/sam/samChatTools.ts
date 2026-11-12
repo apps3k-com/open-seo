@@ -36,6 +36,7 @@ import { searchSerpLocationsTool } from "@/server/mcp/tools/search-serp-location
 import { getSerpResultsTool } from "@/server/mcp/tools/get-serp-results";
 import {
   getAuditIssuesTool,
+  getAuditLighthouseTool,
   getAuditPagesTool,
   getAuditStatusTool,
   runSiteAuditTool,
@@ -419,7 +420,7 @@ export function buildSamMcpTools(
     run_rank_tracker: adaptTool(runRankTrackerTool),
     get_ranked_keywords: adaptTool(getRankedKeywordsTool),
     find_serp_competitors: adaptTool(findSerpCompetitorsTool),
-    search_local_businesses: adaptTool(searchLocalBusinessesTool),
+    search_local_businesses: adaptObjectTool(searchLocalBusinessesTool),
     get_local_serp_results: adaptTool(getLocalSerpResultsTool),
     get_google_business_questions: adaptTool(getGoogleBusinessQuestionsTool),
     get_business_profile: adaptTool(getBusinessProfileTool),
@@ -464,5 +465,6 @@ export function buildSamMcpTools(
     get_audit_status: waitingAuditStatusTool(adaptTool),
     get_audit_issues: adaptTool(getAuditIssuesTool),
     get_audit_pages: adaptTool(getAuditPagesTool),
+    get_audit_lighthouse: adaptTool(getAuditLighthouseTool),
   };
 }

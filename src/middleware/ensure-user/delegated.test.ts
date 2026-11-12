@@ -1,4 +1,4 @@
-import { createClient, type Client } from "@libsql/client";
+import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
 import {
   afterAll,
@@ -10,21 +10,23 @@ import {
   vi,
 } from "vitest";
 import { user } from "@/db/better-auth-schema";
+import { resolveSharedWorkspaceContext } from "./delegated";
 
 vi.mock("cloudflare:workers", () => ({ env: { DATABASE_PROVIDER: "d1" } }));
 
-let client: Client;
-let resolveSharedWorkspaceContext: typeof import("./delegated").resolveSharedWorkspaceContext;
+const client = createClient({ url: "file::memory:" });
+const testDb = drizzle(client, { schema: { user } });
+vi.mock("@/db", () => ({
+  get db() {
+    return testDb;
+  },
+}));
+vi.mock("@/server/auth/delegated-organization", () => ({
+  ensureSharedWorkspaceOrganization: async () => "shared-workspace",
+  ensureDelegatedOrganizationForUser: async () => "delegated-local-admin",
+}));
 
 beforeAll(async () => {
-  client = createClient({ url: "file::memory:" });
-  const testDb = drizzle(client, { schema: { user } });
-  vi.doMock("@/db", () => ({ db: testDb }));
-  vi.doMock("@/server/auth/delegated-organization", () => ({
-    ensureSharedWorkspaceOrganization: async () => "shared-workspace",
-    ensureDelegatedOrganizationForUser: async () => "delegated-local-admin",
-  }));
-
   await client.executeMultiple(`
     CREATE TABLE user (
       id TEXT PRIMARY KEY,
@@ -42,8 +44,6 @@ beforeAll(async () => {
       last_active_organization_id TEXT
     );
   `);
-
-  ({ resolveSharedWorkspaceContext } = await import("./delegated"));
 });
 
 afterAll(() => client.close());

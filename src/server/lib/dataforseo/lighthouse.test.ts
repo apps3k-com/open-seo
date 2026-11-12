@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 
 vi.mock("@/server/lib/runtime-env", () => ({
   // AUTH_MODE unset: the deployment holds the DataForSEO key.
@@ -37,14 +38,19 @@ describe("fetchLighthouseResult", () => {
       );
       vi.stubGlobal("fetch", fetchMock);
       await fetchLighthouseResult({ url: "https://example.com/", strategy });
-      const request = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
-      expect(request[0]).toMatchObject({
-        for_mobile: strategy === "mobile",
-        custom_user_agent: expect.stringContaining(
-          strategy === "mobile" ? "Android" : "Macintosh",
-        ),
-      });
-      expect(request[0].custom_user_agent).toContain("Chrome-Lighthouse");
+      const body = fetchMock.mock.calls[0]?.[1]?.body;
+      if (typeof body !== "string")
+        throw new Error("Expected a JSON request body");
+      const [request] = z
+        .array(
+          z.object({ for_mobile: z.boolean(), custom_user_agent: z.string() }),
+        )
+        .parse(JSON.parse(body));
+      expect(request.for_mobile).toBe(strategy === "mobile");
+      expect(request.custom_user_agent).toContain(
+        strategy === "mobile" ? "Android" : "Macintosh",
+      );
+      expect(request.custom_user_agent).toContain("Chrome-Lighthouse");
     },
   );
 
