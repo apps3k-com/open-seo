@@ -25,6 +25,7 @@ import { sendCreditsExhaustedEvent } from "@/server/email/onboarding-drip";
 import { describeError } from "@/server/lib/errors";
 import {
   estimateRankCheckCredits,
+  RANK_CHECK_DELAYED_ERROR,
   rankCheckCostApprovalError,
 } from "@/shared/rank-tracking";
 import { isHostedServerAuthMode } from "@/server/lib/runtime-env";
@@ -399,12 +400,20 @@ export class RankCheckWorkflow extends WorkflowEntrypoint<
           locationName,
           runId,
         };
-        await runQueuedCheck(step, checkContext);
+        // Shown only if no keyword gets a result: a run that got some reports
+        // the rest as not checked.
+        const firstRead = await runQueuedCheck(
+          step,
+          checkContext,
+          prepareResult.readsEndAt,
+        );
+        if (firstRead.timedOut) batchError = RANK_CHECK_DELAYED_ERROR;
         await retryRankChecks(
           step,
           checkContext,
           configId,
           prepareResult.readsEndAt,
+          firstRead.stragglers,
         );
       } catch (error) {
         // Batch failure — snapshots for completed batches are already

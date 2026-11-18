@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { WorkflowStep } from "cloudflare:workers";
 import { AUTUMN_SEO_DATA_BALANCE_FEATURE_ID } from "@/shared/billing";
+import { RANK_CHECK_DELAYED_ERROR } from "@/shared/rank-tracking";
 import { RankCheckWorkflow } from "./RankCheckWorkflow";
 
 const mocks = vi.hoisted(() => ({
@@ -126,6 +127,10 @@ function runWorkflow(
   );
 }
 
+beforeEach(() => {
+  mocks.runQueuedCheck.mockResolvedValue({ stragglers: [], timedOut: false });
+});
+
 describe("rank check workflow credit ceiling", () => {
   beforeEach(() => {
     mocks.getConfigById.mockResolvedValue({ isActive: true });
@@ -142,7 +147,7 @@ describe("rank check workflow credit ceiling", () => {
   it("rejects a keyword-list race before balance or DataForSEO calls", async () => {
     mocks.getKeywordsForConfig.mockResolvedValue(keywords(4));
 
-    await expect(runWorkflow({ maxCostCredits: 18 })).rejects.toThrow();
+    await expect(runWorkflow({ maxCostCredits: 10 })).rejects.toThrow();
 
     expect(mocks.autumnCheck).not.toHaveBeenCalled();
     expect(mocks.createDataforseoClient).not.toHaveBeenCalled();
@@ -201,7 +206,7 @@ describe("rank check workflow credit ceiling", () => {
   // callers without a ceiling — every scheduled check — must not be treated
   // as approving zero credits.
   it.each([
-    ["at the approved ceiling", 18, 3],
+    ["at the approved ceiling", 10, 3],
     ["without a ceiling", undefined, 5],
   ])("checks the reloaded list %s", async (_label, maxCostCredits, count) => {
     mocks.getKeywordsForConfig.mockResolvedValue(keywords(count));
@@ -214,6 +219,7 @@ describe("rank check workflow credit ceiling", () => {
     expect(mocks.runQueuedCheck).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ keywords: keywords(count) }),
+      expect.any(Number),
     );
   });
 });
@@ -243,6 +249,23 @@ describe("rank check finalization", () => {
       }),
     );
     expect(mocks.updateConfig).not.toHaveBeenCalled();
+  });
+
+  it("says the provider was delayed when no task left its queue", async () => {
+    mocks.runQueuedCheck.mockResolvedValueOnce({
+      stragglers: [],
+      timedOut: true,
+    });
+
+    await runWorkflow({});
+
+    expect(mocks.updateRun).toHaveBeenCalledWith(
+      "run_1",
+      expect.objectContaining({
+        status: "failed",
+        errorMessage: RANK_CHECK_DELAYED_ERROR,
+      }),
+    );
   });
 
   it("keeps the failure when stale cleanup fails the run before it finalizes", async () => {

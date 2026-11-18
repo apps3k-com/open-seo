@@ -79,9 +79,11 @@ export function SearchPerformancePage({
   onSearchChange: (update: Partial<SearchPerformanceSearch>) => void;
 }) {
   const queryClient = useQueryClient();
-  const { type, range, device, country } = search;
+  const { type, range, country } = search;
   // Discover and Google News report pages only, with no queries or position.
   const isWeb = (type ?? "web") === "web";
+  // Google rejects a device filter on Discover, so ignore one left in the URL.
+  const device = type === "discover" ? undefined : search.device;
   const textFilters = useMemo<TextFilters>(
     () => ({
       pageFilter: search.pageText
@@ -271,7 +273,11 @@ export function SearchPerformancePage({
           </>
         ) : !report.connected ? (
           <div className="max-w-2xl">
-            <GoogleConnectionCard provider="gsc" projectId={projectId} />
+            <GoogleConnectionCard
+              provider="gsc"
+              projectId={projectId}
+              prominent
+            />
           </div>
         ) : (
           <>

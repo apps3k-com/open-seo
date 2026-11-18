@@ -11,6 +11,7 @@ import {
 import type { CreditFeature } from "@/shared/billing-credit-features";
 import { autumn, AUTUMN_TRACK_RETRY_OPTIONS } from "@/server/billing/autumn";
 import { captureServerEvent } from "@/server/lib/posthog";
+import { runAfterResponse } from "@/server/lib/background";
 import { sendCreditsExhaustedEvent } from "@/server/email/onboarding-drip";
 import { AppError } from "@/server/lib/errors";
 
@@ -96,6 +97,31 @@ export async function customerHasPaidPlan(
     featureId: AUTUMN_PAID_PLAN_FEATURE_ID,
   });
   return retry.allowed;
+}
+
+/**
+ * The plan that grants the organization's paid entitlement. Null on the free
+ * plan, for paid access granted by hand, and for an organization with no
+ * Autumn customer yet (see customerHasPaidPlan).
+ */
+export async function getPaidPlanId(customerId: string) {
+  let customer;
+  try {
+    customer = await autumn.customers.get({ customerId });
+  } catch (error) {
+    if (errorBodyIncludes(error, "customer_not_found")) return null;
+    throw error;
+  }
+  // The SDK fails open on Autumn 5xx and network errors with an empty
+  // customer that has no id. Reading it as "no plan" would tell a paying
+  // customer they are on a smaller plan, so surface the outage instead.
+  if (!customer.id) {
+    throw new AppError(
+      "UPSTREAM_UNAVAILABLE",
+      "Autumn returned no billing customer",
+    );
+  }
+  return customer.flags[AUTUMN_PAID_PLAN_FEATURE_ID]?.planId ?? null;
 }
 
 // Remaining shared usage credits — the monthly `usage_credits` balance plus the
@@ -205,16 +231,18 @@ export async function checkUsageCreditsDepleted(
   // there is nothing to confirm against the customer object, which shows
   // the credits the budget holds back.
   if (check.topupBudgetReached) {
-    await captureServerEvent({
-      distinctId: customer.userId,
-      event: "usage:credits_gate_refused",
-      organizationId: customer.organizationId,
-      properties: {
-        project_id: customer.projectId,
-        reason: "monthly_budget_reached",
-        monthly_remaining: check.monthlyRemaining,
-      },
-    });
+    await runAfterResponse(
+      captureServerEvent({
+        distinctId: customer.userId,
+        event: "usage:credits_gate_refused",
+        organizationId: customer.organizationId,
+        properties: {
+          project_id: customer.projectId,
+          reason: "monthly_budget_reached",
+          monthly_remaining: check.monthlyRemaining,
+        },
+      }),
+    );
     return { ...notDepleted, depleted: true, budgetReached: true };
   }
 
@@ -245,16 +273,18 @@ export async function checkUsageCreditsDepleted(
     return { ...notDepleted, ...confirmed };
   }
 
-  await captureServerEvent({
-    distinctId: customer.userId,
-    event: "usage:credits_gate_refused",
-    organizationId: customer.organizationId,
-    properties: {
-      project_id: customer.projectId,
-      monthly_remaining: confirmed.monthlyRemaining,
-      topup_remaining: confirmed.topupRemaining,
-    },
-  });
+  await runAfterResponse(
+    captureServerEvent({
+      distinctId: customer.userId,
+      event: "usage:credits_gate_refused",
+      organizationId: customer.organizationId,
+      properties: {
+        project_id: customer.projectId,
+        monthly_remaining: confirmed.monthlyRemaining,
+        topup_remaining: confirmed.topupRemaining,
+      },
+    }),
+  );
   await sendCreditsExhaustedEvent(customer);
   return { ...notDepleted, depleted: true };
 }
@@ -526,22 +556,24 @@ export async function reserveUsageCredits(args: {
   }
 
   if (refusedCalls.length > 0) {
-    await captureServerEvent({
-      distinctId: args.customer.userId,
-      event: "usage:credits_gate_refused",
-      organizationId: args.customer.organizationId,
-      properties: {
-        project_id: args.customer.projectId,
-        reason: budgetReached
-          ? "monthly_budget_reached"
-          : "estimate_exceeds_balance",
-        source: "dataforseo",
-        credit_feature: args.creditFeature,
-        estimated_credits: creditsFor(refusedCalls),
-        monthly_remaining: monthlyRemaining,
-        topup_remaining: topupRemaining,
-      },
-    });
+    await runAfterResponse(
+      captureServerEvent({
+        distinctId: args.customer.userId,
+        event: "usage:credits_gate_refused",
+        organizationId: args.customer.organizationId,
+        properties: {
+          project_id: args.customer.projectId,
+          reason: budgetReached
+            ? "monthly_budget_reached"
+            : "estimate_exceeds_balance",
+          source: "dataforseo",
+          credit_feature: args.creditFeature,
+          estimated_credits: creditsFor(refusedCalls),
+          monthly_remaining: monthlyRemaining,
+          topup_remaining: topupRemaining,
+        },
+      }),
+    );
     // Most users are refused while they still have a few credits left, so
     // this, not the zero-balance gate, is where most of them run out. A
     // spent budget is not that: the credits are there, only held back.
